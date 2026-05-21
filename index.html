@@ -260,13 +260,16 @@ function updateSummary() {
 function isValidEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
-function submitForm() {
+async function submitForm() {
   const firstName = document.getElementById('first_name').value.trim();
   const lastName = document.getElementById('last_name').value.trim();
   const email = document.getElementById('email').value.trim();
   const phone = document.getElementById('phone').value.trim();
   const ptFreq = getNumber('pt_frequency');
   const spFreq = getNumber('sp_frequency');
+  const ptDropins = getNumber('pt_dropins');
+  const spDropins = getNumber('sp_dropins');
+  const notes = document.getElementById('notes').value.trim();
   const agreementAck = document.getElementById('agreement_ack').checked;
   const error = document.getElementById('error-message');
 
@@ -278,8 +281,55 @@ function submitForm() {
   }
 
   error.style.display = 'none';
-  document.getElementById('form-container').style.display = 'none';
-  document.getElementById('success-screen').style.display = 'block';
+
+  const ptTotal      = ptFreq   * 75 * 4;
+  const spTotal      = spFreq   * 50 * 4;
+  const ptDiTotal    = ptDropins * 90;
+  const spDiTotal    = spDropins * 60;
+  const grandTotal   = ptTotal + spTotal + ptDiTotal + spDiTotal;
+  const fmt = n => '$' + n.toLocaleString();
+
+  const submitBtn = document.querySelector('button.primary');
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Sending…';
+
+  try {
+    const res = await fetch('https://formspree.io/f/mdajevyy', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify({
+        _subject: 'New Membership Change Request – Chalkback Strength',
+        first_name: firstName,
+        last_name: lastName,
+        email: email,
+        phone: phone,
+        pt_sessions_per_week: ptFreq,
+        pt_recurring_total: fmt(ptTotal),
+        sp_sessions_per_week: spFreq,
+        sp_recurring_total: fmt(spTotal),
+        pt_dropin_sessions: ptDropins,
+        pt_dropin_total: fmt(ptDiTotal),
+        sp_dropin_sessions: spDropins,
+        sp_dropin_total: fmt(spDiTotal),
+        estimated_cycle_total: fmt(grandTotal),
+        acknowledgment_accepted: 'Yes',
+        additional_notes: notes
+      })
+    });
+
+    if (res.ok) {
+      document.getElementById('form-container').style.display = 'none';
+      document.getElementById('success-screen').style.display = 'block';
+    } else {
+      throw new Error();
+    }
+  } catch {
+    error.style.display = 'block';
+    error.textContent = 'Something went wrong sending your request. Please try again or contact us directly.';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Submit request';
+  }
 }
 function resetForm() {
   document.getElementById('form-container').style.display = 'block';
