@@ -273,16 +273,14 @@ async function submitForm() {
   const agreementAck = document.getElementById('agreement_ack').checked;
   const error = document.getElementById('error-message');
 
-  const nothingSelected = (ptFreq === 0 && spFreq === 0 && ptDropins === 0 && spDropins === 0);
-
-  if (!firstName || !lastName || !isValidEmail(email) || !phone || nothingSelected || !agreementAck) {
+  if (!firstName || !lastName || !isValidEmail(email) || !phone || !agreementAck) {
     error.style.display = 'block';
-    error.textContent = 'Please complete all required fields, make a selection (set recurring sessions to 0 for both to pause your membership, or add drop-in sessions), and check the required acknowledgments.';
+    error.textContent = 'Please complete all required fields and check the required acknowledgment. To pause your membership, set both recurring sessions to 0.';
     window.scrollTo({ top: 0, behavior: 'smooth' });
     return;
   }
 
-  const isPause = (ptFreq === 0 && spFreq === 0);
+  const isPause = (ptFreq === 0 && spFreq === 0 && ptDropins === 0 && spDropins === 0);
 
   error.style.display = 'none';
 
