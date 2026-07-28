@@ -199,7 +199,7 @@ button.secondary { background: transparent; color: #4b5563; border: 1px solid #d
   <p class="section-label">Acknowledgment</p>
   <label class="checkbox-field">
     <input id="agreement_ack" name="agreement_ack" type="checkbox" required />
-    <span>I understand that membership updates apply to the next 4-week billing cycle, that requests submitted fewer than 7 days before my billing date will be applied to the following cycle, and that drop-in sessions are one-time supplemental sessions outside my recurring membership.</span>
+    <span>I understand that membership updates (including pausing my membership by setting recurring sessions to 0) apply to the next 4-week billing cycle, that requests submitted fewer than 7 days before my billing date will be applied to the following cycle, and that drop-in sessions are one-time supplemental sessions outside my recurring membership.</span>
   </label>
 </div>
 
@@ -273,12 +273,16 @@ async function submitForm() {
   const agreementAck = document.getElementById('agreement_ack').checked;
   const error = document.getElementById('error-message');
 
-  if (!firstName || !lastName || !isValidEmail(email) || !phone || (ptFreq === 0 && spFreq === 0) || !agreementAck) {
+  const nothingSelected = (ptFreq === 0 && spFreq === 0 && ptDropins === 0 && spDropins === 0);
+
+  if (!firstName || !lastName || !isValidEmail(email) || !phone || nothingSelected || !agreementAck) {
     error.style.display = 'block';
-    error.textContent = 'Please complete all required fields, select at least one recurring membership option, and check the required acknowledgments.';
+    error.textContent = 'Please complete all required fields, make a selection (set recurring sessions to 0 for both to pause your membership, or add drop-in sessions), and check the required acknowledgments.';
     window.scrollTo({ top: 0, behavior: 'smooth' });
     return;
   }
+
+  const isPause = (ptFreq === 0 && spFreq === 0);
 
   error.style.display = 'none';
 
@@ -298,7 +302,10 @@ async function submitForm() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
       body: JSON.stringify({
-        _subject: 'New Membership Change Request – Chalkback Strength',
+        _subject: isPause
+          ? 'PAUSE Membership Request – Chalkback Strength'
+          : 'New Membership Change Request – Chalkback Strength',
+        request_type: isPause ? 'Pause membership (0 recurring sessions)' : 'Membership change',
         first_name: firstName,
         last_name: lastName,
         email: email,
