@@ -227,6 +227,45 @@ button.secondary { background: transparent; color: #4b5563; border: 1px solid #d
 </div>
 
 <script>
+/* Client portal (Supabase): each request is also saved straight into the portal's Change requests.
+   The anon key is safe to publish: the database only lets this form add new pending requests. */
+const PORTAL_URL = 'https://nelxlemctcizmbodesjp.supabase.co';
+const PORTAL_KEY = 'sb_publishable_gwEtbb3GDo6-fWIkwPP6XQ_vjY8gGZI';
+const FIRST_PERIOD = '2026-06-01', PERIOD_DAYS = 28, NOTICE_DAYS = 7;
+
+function isoDate(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+function nextEffectivePeriod(today) {
+  const start = new Date(FIRST_PERIOD + 'T12:00:00');
+  for (let i = 0; i < 400; i++) {
+    const s = new Date(start); s.setDate(s.getDate() + i * PERIOD_DAYS);
+    const deadline = new Date(s); deadline.setDate(deadline.getDate() - NOTICE_DAYS);
+    if (isoDate(deadline) >= isoDate(today)) return isoDate(s);
+  }
+  return '';
+}
+async function saveToPortal(r) {
+  if (!PORTAL_KEY || PORTAL_KEY.indexOf('PASTE') === 0) return false;
+  const now = new Date();
+  const drops = {}; if (r.ptDropins) drops.DPT = r.ptDropins; if (r.spDropins) drops.DSP = r.spDropins;
+  const sessions = {}; if (r.ptFreq) sessions.PT = r.ptFreq; if (r.spFreq) sessions.SP = r.spFreq;
+  const type = r.isPause ? 'Pause' : (!r.ptFreq && !r.spFreq && (r.ptDropins || r.spDropins)) ? 'Drop-in purchase' : 'Change sessions';
+  const id = 'form-' + now.getTime().toString(36) + Math.random().toString(36).slice(2, 8);
+  const headers = { 'Content-Type': 'application/json', 'apikey': PORTAL_KEY, 'Prefer': 'return=minimal' };
+  if (PORTAL_KEY.indexOf('eyJ') === 0) headers['Authorization'] = 'Bearer ' + PORTAL_KEY;
+  const res = await fetch(PORTAL_URL + '/rest/v1/docs', {
+    method: 'POST', headers,
+    body: JSON.stringify({ collection: 'changes', id, data: {
+      client: '', received: isoDate(now), type, status: 'Pending', ack: 'Yes', source: 'Member form',
+      effective: nextEffectivePeriod(now), sessions: type === 'Drop-in purchase' || type === 'Pause' ? {} : sessions, drops,
+      clientNotes: r.notes, reviewNotes: '',
+      submitter: { first: r.firstName, last: r.lastName, email: r.email, phone: r.phone },
+      formType: r.isPause ? 'Pause membership (0 recurring sessions)' : 'Membership change',
+      formTotal: r.grandTotal, submittedAt: now.toISOString()
+    } })
+  });
+  return res.ok;
+}
+
 const PT_RATE = 75;
 const SP_RATE = 50;
 const PT_DROPIN_RATE = 90;
@@ -295,6 +334,9 @@ async function submitForm() {
   submitBtn.disabled = true;
   submitBtn.textContent = 'Sending…';
 
+  const portalSave = saveToPortal({ firstName, lastName, email, phone, ptFreq, spFreq, ptDropins, spDropins, notes, isPause, grandTotal })
+    .catch(() => false);
+
   try {
     const res = await fetch('https://formspree.io/f/mdajevyy', {
       method: 'POST',
@@ -322,7 +364,8 @@ async function submitForm() {
       })
     });
 
-    if (res.ok) {
+    const savedToPortal = await portalSave;
+    if (res.ok || savedToPortal) {
       document.getElementById('form-container').style.display = 'none';
       document.getElementById('success-screen').style.display = 'block';
     } else {
